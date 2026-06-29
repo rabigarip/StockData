@@ -1,0 +1,64 @@
+name: Refresh GCC MarketScreener snapshots
+
+# Scrapes the MarketScreener /finances/ (+ other) pages for the 60 GCC names
+# from GitHub's residential-class runners (MarketScreener Cloudflare-blocks
+# datacenter IPs), and commits the HTML snapshots into THIS repo's
+# data/marketscreener/. The daily sheet refresh then reads those snapshots —
+# no live scraping needed anywhere else.
+
+on:
+  workflow_dispatch:        # run on demand
+  schedule:
+    - cron: '0 6 * * 1'     # weekly, Monday 06:00 UTC
+
+permissions:
+  contents: write           # to commit refreshed snapshots
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          # If final_earnings is private, set SUBMODULE_TOKEN (a PAT with read
+          # access) in repo secrets; otherwise github.token covers a public submodule.
+          token: ${{ secrets.SUBMODULE_TOKEN || github.token }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install engine dependencies
+        run: pip install -r final_earnings/requirements.txt
+
+      - name: Resolve MS ids (from ISIN) + refresh snapshots
+        env:
+          MS_TRACKED_REFRESH: '1'   # commit each successful HTML to data/marketscreener/
+          MS_USE_CURL_CFFI: '1'     # Chrome TLS fingerprint -> passes Cloudflare
+        run: |
+          cd final_earnings
+          TICKERS="$(cat ../tickers_engine.csv)"
+          # 1) Resolve a MarketScreener id from ISIN for any GCC name missing one.
+          for t in ${TICKERS//,/ }; do
+            python -m scripts.backfill_marketscreener_from_isin \
+              --ticker "$t" --merge-json --delay 1.5 || true
+          done
+          # 2) Fetch + snapshot the pages (skips names still without an id).
+          python scripts/refresh_marketscreener_cache.py --tickers "$TICKERS" --delay 3 || true
+
+      - name: Copy GCC snapshots into this repo
+        run: |
+          mkdir -p data/marketscreener
+          find final_earnings/data/marketscreener -maxdepth 1 -type f \
+            \( -name '*_SR_*' -o -name '*_AE_*' -o -name '*_QA_*' \
+               -o -name '*_KW_*' -o -name '*_OM_*' \) \
+            -exec cp {} data/marketscreener/ \;
+
+      - name: Commit refreshed snapshots
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/marketscreener
+          git commit -m "Refresh GCC MarketScreener snapshots [skip ci]" || echo "no changes"
+          git push
