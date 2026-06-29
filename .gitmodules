@@ -1,0 +1,3 @@
+[submodule "final_earnings"]
+	path = final_earnings
+	url = https://github.com/rabigarip/final_earnings.git

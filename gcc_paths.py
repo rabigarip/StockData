@@ -20,9 +20,11 @@ SNAP_DIR = HERE / "data" / "marketscreener"
 
 
 def _engine_root() -> Path:
+    # Require the engine's company_master.json so a half-cloned submodule
+    # doesn't shadow a working local checkout.
     for cand in (os.environ.get("ENGINE_ROOT"), HERE / "final_earnings",
                  Path.home() / "final_earnings"):
-        if cand and Path(cand).exists():
+        if cand and (Path(cand) / "data" / "company_master.json").exists():
             return Path(cand)
     raise RuntimeError("final_earnings engine not found — set ENGINE_ROOT or add the submodule")
 
