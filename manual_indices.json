@@ -1,5 +1,4 @@
 {
-  "_comment": "Indices with NO free web source — update from Bloomberg. The refresh preserves these.",
-  "MSMTR":   {"last": 11549.59, "asof": "2026-06-29"},
-  "SPGGCDT": {"last": 316.81,   "asof": "2026-06-29"}
+  "_comment": "Total-return index with no live free source — update from Bloomberg/MSX. Preserved across refreshes.",
+  "MSMTR": {"last": 11549.59, "asof": "2026-06-29"}
 }

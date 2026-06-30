@@ -13,9 +13,11 @@ INDICES = {
     "QEAS":    ("QE All Share Index",        "Qatar",            None,       "qe-all-shares",           None),
     "KWSEAS":  ("Kuwait All Share Index",    "Kuwait",           None,       "kuwait-parallel-market",  None),
     "BHSEASI": ("Bahrain All Share Index",   "Bahrain",          None,       None,                      "BAHRAIN:BHBX"),
-    # No free source -> manual_indices.json
+    # S&P GCC: live PRICE index on Yahoo (^SPGGCD ≈ 149). NB: differs from the
+    # total-return SPGGCDT (316.81) you first gave — this is the price variant.
+    "SPGGCDT": ("S&P GCC Composite (price)", "GCC",              "^SPGGCD",  None,                      None),
+    # Oman MSX30 total-return: no live free source (Investing is delayed) -> manual.
     "MSMTR":   ("MSX 30 / Muscat (TR)",      "Oman",             None,       None,                      None),
-    "SPGGCDT": ("S&P GCC Composite",         "GCC",              None,       None,                      None),
 }
 
 REFERENCE = {
