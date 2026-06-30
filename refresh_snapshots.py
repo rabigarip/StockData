@@ -46,23 +46,29 @@ def _toks(s):
     return {w for w in re.findall(r"[a-z]+", (s or "").lower()) if w not in STOP and len(w) > 2}
 
 
-def _finances_title(tf: str) -> str | None:
+def _finances_html(tf: str) -> str | None:
     p = ENGINE_SNAP / f"ms_{tf}_finances.html"
-    raw = None
     if p.exists():
-        raw = p.read_text("utf-8", errors="ignore")
-    elif p.with_suffix(".html.gz").exists():
-        raw = gzip.decompress(p.with_suffix(".html.gz").read_bytes()).decode("utf-8", "ignore")
-    if not raw:
-        return None
-    m = re.search(r"<title>(.*?)</title>", raw, re.I | re.S)
-    return m.group(1).strip() if m else ""
+        return p.read_text("utf-8", errors="ignore")
+    if p.with_suffix(".html.gz").exists():
+        return gzip.decompress(p.with_suffix(".html.gz").read_bytes()).decode("utf-8", "ignore")
+    return None
 
 
-def _matches(expected: str, code: str, title: str | None) -> bool:
-    if not title:
+def _verify(expected_name: str, isin: str, code: str, html: str | None) -> bool:
+    """Confirm the scraped page is the expected company.
+
+    Primary, exact gate: the company's ISIN appears in the page (finances pages
+    carry exactly one ISIN — the company's own). Fallback for ISIN-less records:
+    company-name tokens OR the numeric Tadawul code in the <title>.
+    """
+    if not html:
         return False
-    if _toks(expected) & _toks(title):
+    if isin and isin in html:
+        return True
+    m = re.search(r"<title>(.*?)</title>", html, re.I | re.S)
+    title = m.group(1).strip() if m else ""
+    if _toks(expected_name) & _toks(title):
         return True
     return bool(code and code.isdigit() and re.search(rf"\b{code}\b", title))
 
@@ -109,16 +115,17 @@ def main() -> int:
             print(f"[{i}/{len(tickers)}] {et}: NO name/record — skip", flush=True)
             unresolved.append(et); continue
 
+        isin = (rec.get("isin") or "").strip()
         hit = None
         for slug in _candidate_slugs(et, rec, name):
             base = f"https://www.marketscreener.com/quote/stock/{slug}"
-            prefix = f"ms_{tf}_{(rec.get('isin') or 'noisin').strip() or 'noisin'}_{slug}"
+            prefix = f"ms_{tf}_{isin or 'noisin'}_{slug}"
             try:
                 fetch_financial_forecast_series(base, cache_key_prefix=prefix)
             except Exception:
                 pass
             time.sleep(PAGE_DELAY)
-            if _matches(name, code, _finances_title(tf)):
+            if _verify(name, isin, code, _finances_html(tf)):
                 hit = (slug, base, prefix); break
 
         if not hit:
