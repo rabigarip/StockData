@@ -23,6 +23,7 @@ from src.providers._yahoo_blind import is_yahoo_blind
 import column_map as CM
 from ticker_map import MAP as TICKER_MAP
 from ms_forecast import forecast_for
+import ms_price
 
 # ── provenance colours ────────────────────────────────────────
 GREEN  = PatternFill("solid", fgColor="C6EFCE")  # live actual
@@ -116,8 +117,11 @@ def refresh_row(ws, row: int, bbg: str):
     blind = (bbg in BLIND) or is_yahoo_blind(yh)
     print(f"  row {row:<3} {bbg:<18} -> {yh:<10} {'(BLIND)' if blind else '       '} {name}")
     if blind:
-        # Yahoo has no price for blind names; MS forecast supplies actuals + estimates.
-        for col in list(CM.QUOTE_COLS) + list(CM.HISTORY_COLS):
+        # Yahoo has no data for blind names: MS summary gives the price (G),
+        # MS forecast supplies actuals + estimates. Ratios/history stay red.
+        px = ms_price.price_for(yh)
+        _write(ws, "G", row, round(px, 4) if px else None, GREEN if px else RED)
+        for col in ["H", "I", "J", "AK", "AL", "AM", "AN"]:
             _write(ws, col, row, None, RED)
         _write_ms(ws, row, yh, blind=True)
         return
@@ -146,12 +150,12 @@ def refresh_row(ws, row: int, bbg: str):
         src = aidx if plabel.startswith("FY") else qidx
         p = src.get(plabel)
         val = p.revenue if p else None
-        _write(ws, col, row, round(val, 2) if val else None, GREEN if val else RED)
+        _write(ws, col, row, round(val / 1e6, 2) if val else None, GREEN if val else RED)
     for col, plabel in CM.NETPROFIT_ACTUAL_COLS.items():
         src = aidx if plabel.startswith("FY") else qidx
         p = src.get(plabel)
         val = p.net_income if p else None
-        _write(ws, col, row, round(val, 2) if val else None, GREEN if val else RED)
+        _write(ws, col, row, round(val / 1e6, 2) if val else None, GREEN if val else RED)
 
     # 3) MarketScreener forecast snapshot — fills estimates (annual + quarterly)
     #    AND backfills any actual cells Yahoo left blank (bank gaps).
@@ -169,7 +173,8 @@ def main(rows=None):
     for r in rows:
         refresh_row(ws, r, ws.cell(row=r, column=1).value)
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    note = ws.cell(row=1, column=1); note.value = f"Last refreshed: {stamp}"
+    note = ws.cell(row=1, column=1)
+    note.value = f"Last refreshed: {stamp}  ·  Revenue & Net profit in millions (local currency)"
     note.font = Font(italic=True, size=9)
     wb.save(OUT_XLSX)
     print(f"\nSaved -> {OUT_XLSX}")

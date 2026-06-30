@@ -35,9 +35,9 @@ def forecast_for(yahoo_symbol: str) -> dict:
     if not payload or status.status not in ("success", "partial"):
         return {}
 
-    # Scale MS values (usually 'million') to absolute, matching Yahoo's units so
-    # estimate and actual columns are internally consistent.
-    scale = {"thousand": 1e3, "million": 1e6, "billion": 1e9}.get(
+    # Normalise MS values to MILLIONS (the sheet's unit for financials).
+    # MS reports in 'million' by default -> factor 1.
+    scale = {"thousand": 1e-3, "million": 1.0, "billion": 1e3}.get(
         str(payload.get("unit_scale", "")).lower(), 1.0)
 
     def _series(block: dict, normalise) -> dict:
