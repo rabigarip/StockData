@@ -13,6 +13,13 @@ from engine_data import _master, engine_ticker
 from ticker_map import MAP
 
 SNAP = gcc_paths.SNAP_DIR
+# Names not in company_master — expected names for the title check (mirror refresh_snapshots).
+FALLBACK_NAMES = {
+    "NBK.KW": "National Bank of Kuwait", "ZAIN.KW": "Mobile Telecommunications Zain",
+    "MABANEE.KW": "Mabanee", "EMIRATESNBD.AE": "Emirates NBD",
+    "ADIB.AE": "Abu Dhabi Islamic Bank", "EMAARDEV.AE": "Emaar Development",
+    "SALIK.AE": "Salik",
+}
 STOP = {"the","company","co","for","and","plc","pjsc","saog","group","sa","ltd",
         "public","joint","stock","cooperative","insurance","limited","bank","com",
         "holding","corporation","corp","services","industries","industry"}
@@ -38,7 +45,7 @@ def main():
     for yh, _blind in MAP.values():
         et = engine_ticker(yh)
         tf = et.replace(".", "_")
-        expected = (master.get(et) or {}).get("company_name", "")
+        expected = (master.get(et) or {}).get("company_name", "") or FALLBACK_NAMES.get(et, "")
         title = _title(tf)
         if title is None:
             missing.append(et); continue

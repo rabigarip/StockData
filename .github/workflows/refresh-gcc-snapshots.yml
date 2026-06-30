@@ -39,13 +39,8 @@ jobs:
           ENGINE_ROOT: ${{ github.workspace }}/final_earnings
         run: python refresh_snapshots.py
         
-      - name: Copy GCC snapshots into this repo
-        run: |
-          mkdir -p data/marketscreener
-          find final_earnings/data/marketscreener -maxdepth 1 -type f \
-            \( -name '*_SR_*' -o -name '*_AE_*' -o -name '*_QA_*' \
-               -o -name '*_KW_*' -o -name '*_OM_*' \) \
-            -exec cp {} data/marketscreener/ \;
+      # No copy step: refresh_snapshots.py places ONLY verified names' lean files
+      # into data/marketscreener/ (and clears stale ones first).
 
       - name: Commit refreshed snapshots
         run: |

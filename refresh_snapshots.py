@@ -13,7 +13,7 @@ The title check reuses the page we already fetched via the working curl_cffi
 path — the same check that caught the 29 corrupt snapshots.
 """
 from __future__ import annotations
-import os, re, time, gzip
+import os, re, time, gzip, shutil
 from pathlib import Path
 
 os.environ.setdefault("MS_TRACKED_REFRESH", "1")
@@ -29,6 +29,8 @@ from src.providers.marketscreener_pages import (  # noqa: E402
 
 PAGE_DELAY = float(os.environ.get("MS_PAGE_DELAY", "3"))
 ENGINE_SNAP = gcc_paths.ENGINE_ROOT / "data" / "marketscreener"
+GCC_SNAP = gcc_paths.SNAP_DIR
+GCC_MARKETS = ("_SR_", "_AE_", "_QA_", "_KW_", "_OM_")
 
 # Names not in company_master — expected names for the title check / name search.
 FALLBACK_NAMES = {
@@ -56,16 +58,15 @@ def _finances_html(tf: str) -> str | None:
 
 
 def _verify(expected_name: str, isin: str, code: str, html: str | None) -> bool:
-    """Confirm the scraped page is the expected company.
+    """Confirm the scraped page is the expected company by NAME or Tadawul CODE.
 
-    Primary, exact gate: the company's ISIN appears in the page (finances pages
-    carry exactly one ISIN — the company's own). Fallback for ISIN-less records:
-    company-name tokens OR the numeric Tadawul code in the <title>.
+    NOTE: ISIN is deliberately NOT used — company_master.json has wrong ISINs for
+    several Saudi names (e.g. Mouwasat's listed ISIN is actually Wafrah's), so an
+    ISIN gate let wrong companies through (resolution and verification both trusted
+    the same bad ISIN). Name-tokens OR the numeric code in the <title> are reliable.
     """
     if not html:
         return False
-    if isin and isin in html:
-        return True
     m = re.search(r"<title>(.*?)</title>", html, re.I | re.S)
     title = m.group(1).strip() if m else ""
     if _toks(expected_name) & _toks(title):
@@ -94,10 +95,25 @@ def _candidate_slugs(et: str, rec: dict, name: str):
         pass
 
 
-def _purge(tf: str):
-    for f in ENGINE_SNAP.glob(f"ms_{tf}_*"):
-        try: f.unlink()
-        except Exception: pass
+def _place(tf: str):
+    """Copy a verified name's lean snapshots from the engine dir into the repo."""
+    GCC_SNAP.mkdir(parents=True, exist_ok=True)
+    for page in ("finances", "calendar", "calendar_quarterly", "summary"):
+        for ext in (".html", ".html.gz"):
+            src = ENGINE_SNAP / f"ms_{tf}_{page}{ext}"
+            if src.exists():
+                shutil.copy2(src, GCC_SNAP / src.name)
+
+
+def _clear_gcc_region():
+    """Drop all GCC snapshots from the repo dir; only verified names are re-placed,
+    so corrupt/stale files from prior runs cannot survive."""
+    if not GCC_SNAP.exists():
+        return
+    for f in GCC_SNAP.iterdir():
+        if f.is_file() and any(m in f.name for m in GCC_MARKETS):
+            try: f.unlink()
+            except Exception: pass
 
 
 def main() -> int:
@@ -105,6 +121,7 @@ def main() -> int:
     tickers = list(dict.fromkeys(engine_ticker(yh) for yh, _b in MAP.values()))
     print(f"Refreshing MS snapshots for {len(tickers)} GCC names (scrape-then-verify)\n", flush=True)
 
+    _clear_gcc_region()  # repo dir is rebuilt from verified names only
     resolved, unresolved = 0, []
     for i, et in enumerate(tickers, 1):
         rec = master.get(et) or {}
@@ -129,7 +146,6 @@ def main() -> int:
                 hit = (slug, base, prefix); break
 
         if not hit:
-            _purge(tf)  # drop any wrong write so nothing bad is committed
             print(f"[{i}/{len(tickers)}] {et}: UNRESOLVED", flush=True)
             unresolved.append(et); continue
 
@@ -138,6 +154,7 @@ def main() -> int:
             try: fn(base, cache_key_prefix=prefix)
             except Exception: pass
             time.sleep(PAGE_DELAY)
+        _place(tf)  # copy ONLY this verified name's lean files into the repo
         resolved += 1
         print(f"[{i}/{len(tickers)}] {et} -> {slug}  OK", flush=True)
 
