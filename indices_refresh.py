@@ -1,12 +1,11 @@
-"""Write GCC index last-prices to a separate workbook: 'GCC Indices.xlsx'.
+"""Write GCC index last-prices to 'GCC Indices.xlsx' — all sources run locally.
 
-All sources run locally (no GitHub Action needed for indices):
-  - Yahoo:     TASI, DFM (live)
-  - Investing: ADX General (live; Investing isn't IP-blocked like MarketScreener)
-  - Manual:    the 5 Bloomberg-only indices (read from manual_indices.json, which
-               you update from Bloomberg; the refresh preserves them)
+  Yahoo:       TASI, DFM
+  Investing:   ADX, QE All Share, Kuwait All Share
+  TradingView: Bahrain All Share
+  Manual:      Oman MSMTR, S&P GCC  (manual_indices.json — no free source; preserved)
 
-Colour: green = live (Yahoo/Investing), amber = manual, red = unavailable.
+Colour: green = live, amber = manual, red = unavailable.
 """
 from __future__ import annotations
 import json
@@ -18,7 +17,7 @@ from openpyxl.styles import PatternFill, Font
 import yfinance as yf
 
 import indices_config as IC
-from refresh_index_snapshots import _fetch_last  # live Investing scrape
+from index_sources import investing_last, tv_last
 
 HERE = Path(__file__).resolve().parent
 OUT = HERE / "GCC Indices.xlsx"
@@ -37,6 +36,11 @@ def _yahoo_last(sym: str):
         return None
 
 
+def _sane(v, bbg):
+    ref = IC.REFERENCE.get(bbg)
+    return v is not None and ref and 0.5 * ref <= v <= 2 * ref
+
+
 def main():
     manual = json.loads(MANUAL.read_text()) if MANUAL.exists() else {}
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
@@ -46,19 +50,21 @@ def main():
     for c in ws[1]:
         c.font = Font(bold=True)
 
-    for bbg, (name, market, ysym, slug) in IC.INDICES.items():
+    for bbg, (name, market, ysym, slug, tv) in IC.INDICES.items():
         last = asof = None; source = "unavailable"; fill = RED
         if ysym:
             last = _yahoo_last(ysym)
             if last is not None: source, asof, fill = "Yahoo", today, GREEN
         elif slug:
-            v, _page = _fetch_last(slug)
-            ref = IC.REFERENCE.get(bbg)
-            if v is not None and ref and 0.5 * ref <= v <= 2 * ref:
-                last, source, asof, fill = round(v, 2), "Investing", today, GREEN
-        elif bbg in manual:
+            v, _ = investing_last(slug)
+            if _sane(v, bbg): last, source, asof, fill = round(v, 2), "Investing", today, GREEN
+        elif tv:
+            v = tv_last(tv)
+            if _sane(v, bbg): last, source, asof, fill = round(v, 2), "TradingView", today, GREEN
+        if last is None and bbg in manual and isinstance(manual[bbg], dict):
             last = manual[bbg].get("last"); asof = manual[bbg].get("asof")
             if last is not None: source, fill = "Manual (Bloomberg)", AMBER
+
         ws.append([bbg, name, market, last, asof, source])
         ws.cell(row=ws.max_row, column=4).fill = fill
 
@@ -68,7 +74,9 @@ def main():
     ws.append([]); ws.append([f"Last refreshed: {stamp}"])
     wb.save(OUT)
     priced = sum(1 for r in range(2, 2 + len(IC.INDICES)) if ws.cell(row=r, column=4).value is not None)
-    print(f"Wrote {OUT}  ({priced}/{len(IC.INDICES)} indices priced)")
+    live = sum(1 for r in range(2, 2 + len(IC.INDICES))
+               if ws.cell(row=r, column=6).value in ("Yahoo", "Investing", "TradingView"))
+    print(f"Wrote {OUT}  ({priced}/{len(IC.INDICES)} priced, {live} live)")
 
 
 if __name__ == "__main__":
