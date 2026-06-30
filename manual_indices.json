@@ -1,0 +1,8 @@
+{
+  "_comment": "Indices with no free web source — update these from Bloomberg. value + asof date. The refresh reads these and preserves them.",
+  "QEAS":    {"last": 4026.18,  "asof": "2026-06-29"},
+  "KWSEAS":  {"last": 8750.69,  "asof": "2026-06-29"},
+  "BHSEASI": {"last": 2040.07,  "asof": "2026-06-29"},
+  "MSMTR":   {"last": 11549.59, "asof": "2026-06-29"},
+  "SPGGCDT": {"last": 316.81,   "asof": "2026-06-29"}
+}

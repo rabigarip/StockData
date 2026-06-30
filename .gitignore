@@ -10,3 +10,7 @@ venv/
 
 # OS
 .DS_Store
+
+# Generated indices output
+GCC Indices.xlsx
+index_snapshots.json

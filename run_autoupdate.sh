@@ -25,5 +25,9 @@ echo "[$(date '+%H:%M:%S')] 2/2 Building sheet from Yahoo (live) + snapshots..."
 GCC_MASTER_XLSX="$MASTER" ENGINE_ROOT="$ENGINE" PYTHONPATH="$ENGINE" \
   "$ENGINE/.venv/bin/python" "$HERE/gcc_refresh.py"
 
+echo "[$(date '+%H:%M:%S')] Building indices file (Yahoo + Investing live)..."
+ENGINE_ROOT="$ENGINE" PYTHONPATH="$ENGINE" "$ENGINE/.venv/bin/python" "$HERE/indices_refresh.py"
+
 echo "[$(date '+%H:%M:%S')] Done."
-echo "Open:  $OUT"
+echo "Stocks:  $OUT"
+echo "Indices: $HERE/GCC Indices.xlsx"
