@@ -32,21 +32,13 @@ jobs:
       - name: Install engine dependencies
         run: pip install -r final_earnings/requirements.txt
 
-      - name: Resolve MS ids (from ISIN) + refresh snapshots
+      - name: Scrape MS snapshots (self-contained, no DB)
         env:
-          MS_TRACKED_REFRESH: '1'   # commit each successful HTML to data/marketscreener/
-          MS_USE_CURL_CFFI: '1'     # Chrome TLS fingerprint -> passes Cloudflare
-        run: |
-          cd final_earnings
-          TICKERS="$(cat ../tickers_engine.csv)"
-          # 1) Resolve a MarketScreener id from ISIN for any GCC name missing one.
-          for t in ${TICKERS//,/ }; do
-            python -m scripts.backfill_marketscreener_from_isin \
-              --ticker "$t" --merge-json --delay 1.5 || true
-          done
-          # 2) Fetch + snapshot the pages (skips names still without an id).
-          python scripts/refresh_marketscreener_cache.py --tickers "$TICKERS" --delay 3 || true
-
+          MS_TRACKED_REFRESH: '1'
+          MS_USE_CURL_CFFI: '1'
+          ENGINE_ROOT: ${{ github.workspace }}/final_earnings
+        run: python refresh_snapshots.py
+        
       - name: Copy GCC snapshots into this repo
         run: |
           mkdir -p data/marketscreener
